@@ -9,7 +9,13 @@ Streamlit と GitHub の連携および Folium を用いた地図描画の学習
 - **Folium**: 地図上への図形（円）の描画と表示
 
 ---
+## ライセンス (License)
 
+このプロジェクトは **MITライセンス** の下で公開されています。詳細は [LICENSE](./LICENSE) ファイルをご覧ください。
+
+Copyright (c) 2026 あなたの名前（またはGitHubユーザー名）
+
+---
 ## 免責事項 / Disclaimer
 
 ### 日本語
