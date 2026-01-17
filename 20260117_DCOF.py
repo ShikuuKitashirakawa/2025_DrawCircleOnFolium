@@ -80,7 +80,7 @@ with st.sidebar:
         
         **ライセンス**
         MIT License
-        © 2026 [あなたの名前]
+        © 2026 Shikuu Kitashirakawa
         """)
 
 # --- 自動ズームと地図 ---
