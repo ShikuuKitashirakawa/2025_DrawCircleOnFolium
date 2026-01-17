@@ -69,6 +69,20 @@ with st.sidebar:
     st.markdown("---")
     map_style = st.radio("地図スタイル", ["標準地図", "淡色地図", "シームレス空中写真"])
 
+# サイドバーの最後に追記
+    st.markdown("---")
+    with st.expander("ℹ️ 免責事項・ライセンス"):
+        st.caption("""
+        **免責事項**
+        - 本アプリの計算結果（面積・住所等）の正確性は保証されません。
+        - 本アプリの利用により生じた損害について、作者は一切の責任を負いません。
+        - 地図データは国土地理院タイル、住所検索はOpenStreetMapを利用しています。
+        
+        **ライセンス**
+        MIT License
+        © 2026 [あなたの名前]
+        """)
+
 # --- 自動ズームと地図 ---
 focus_r = sets[1][0] if sets[1][0] > 0 else (sets[0][0] if sets[0][0] > 0 else 1.0)
 zoom_val = calculate_zoom_level(focus_r)
