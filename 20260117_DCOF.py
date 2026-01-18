@@ -62,7 +62,7 @@ with st.sidebar:
     
     # 検索機能の追加
     st.subheader("🔍 キーワード検索")
-    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、松山市枝松町")
+    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、京都市下京区四条河原町")
     if st.button("検索して移動"):
         if search_query:
             with st.spinner("地点を検索中..."):
@@ -168,4 +168,5 @@ if map_data and map_data["last_clicked"]:
     # 前回の座標と一定以上の差があれば更新
     if abs(nl - st.session_state.clicked_lat) > 0.000001:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
+
         st.rerun()
