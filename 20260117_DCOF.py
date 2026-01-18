@@ -60,22 +60,32 @@ if 'clicked_lon' not in st.session_state:
 with st.sidebar:
     st.header("⚙️ エリア設定")
     
-    # 検索機能の追加
+    # 🔍 キーワード検索（Enter対応版）
     st.subheader("🔍 キーワード検索")
-    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、京都市下京区四条河原町")
-    if st.button("検索して移動"):
-        if search_query:
-            with st.spinner("地点を検索中..."):
-                res_lat, res_lon, res_address = search_location(search_query)
-                if res_lat:
-                    st.session_state.clicked_lat = res_lat
-                    st.session_state.clicked_lon = res_lon
-                    st.success(f"発見: {res_address[:30]}...")
-                    # 検索後は再描画
-                    st.rerun()
-                else:
-                    st.error(res_address)
+    
+    # 前回の検索語を保持するセッションを初期化
+    if 'last_search' not in st.session_state:
+        st.session_state.last_search = ""
 
+    # text_input自体がEnterキーでrerunをトリガーします
+    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、松山市枝松町", key="search_input")
+
+    # 検索を実行する条件：Enterが押されて内容が前回と異なる、またはボタンが押された場合
+    search_triggered = st.button("検索")
+    
+    # Enterキーまたはボタンによるトリガー検知
+    if (search_query and search_query != st.session_state.last_search) or search_triggered:
+        with st.spinner("地点を検索中..."):
+            res_lat, res_lon, res_address = search_location(search_query)
+            if res_lat:
+                st.session_state.clicked_lat = res_lat
+                st.session_state.clicked_lon = res_lon
+                st.session_state.last_search = search_query # 検索語を保存
+                st.success(f"発見: {res_address[:30]}...")
+                st.rerun()
+            else:
+                st.error("地点が見つかりませんでした。")
+    
     st.markdown("---")
     
     # 緯度経度の直接入力（セッション状態を反映）
@@ -170,3 +180,4 @@ if map_data and map_data["last_clicked"]:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
 
         st.rerun()
+
