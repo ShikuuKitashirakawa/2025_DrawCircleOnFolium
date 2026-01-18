@@ -68,7 +68,7 @@ with st.sidebar:
         st.session_state.last_search = ""
 
     # text_input自体がEnterキーでrerunをトリガーします
-    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、松山市枝松町", key="search_input")
+    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、京都市下京区四条河原町", key="search_input")
 
     # 検索を実行する条件：Enterが押されて内容が前回と異なる、またはボタンが押された場合
     search_triggered = st.button("検索")
@@ -180,4 +180,5 @@ if map_data and map_data["last_clicked"]:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
 
         st.rerun()
+
 
