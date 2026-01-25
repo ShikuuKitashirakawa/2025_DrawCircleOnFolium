@@ -82,14 +82,14 @@ if 'r3_val' not in st.session_state: st.session_state.r3_val = 5.0
 with st.sidebar:
     st.header("👤 ユーザー設定")
     
-    # 入力ボックス（valueを空にしてplaceholderを使用）
+    # ニックネーム入力（プレースホルダー対応）
     user_name_input = st.text_input(
         "ニックネーム", 
         value="", 
         placeholder="匿名ユーザー"
     )
     
-    # 入力があればそれを使用、空なら「匿名ユーザー」として扱う
+    # 入力があればそれを使用、空なら「匿名ユーザー」として扱う（NameError防止）
     display_name = user_name_input if user_name_input else "匿名ユーザー"
     
     st.caption("⚠️ プライバシー保護のため本名以外の入力を推奨します。")
@@ -99,6 +99,7 @@ with st.sidebar:
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df = conn.read(ttl=0)
+            # 現在のニックネームに一致する履歴を抽出
             user_history = df[df['user_name'] == display_name]
             if not user_history.empty:
                 last_record = user_history.iloc[-1]
@@ -114,7 +115,6 @@ with st.sidebar:
         except:
             st.error("履歴の読み込みに失敗しました")
             
-    
     st.markdown("---")
 
     st.header("⚙️ エリア設定")
@@ -123,7 +123,7 @@ with st.sidebar:
     search_query = st.text_input("地名・住所を入力", placeholder="例：Paris, Tokyo", key="search_input")
     search_button = st.button("検索")
     
-    # 📜 履歴復元セクション
+    # 📜 履歴復元セクション（全ユーザー用）
     st.markdown("---")
     st.subheader("📜 履歴から復元")
     try:
@@ -170,7 +170,8 @@ with st.sidebar:
                     st.session_state.clicked_lat = res_lat
                     st.session_state.clicked_lon = res_lon
                     st.session_state.last_search = search_query
-                    save_log_to_sheets(user_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
+                    # display_name を使って保存
+                    save_log_to_sheets(display_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
                     st.rerun()
 
     st.markdown("---")
@@ -246,18 +247,13 @@ with col_info:
 
     for i, (r, color) in enumerate(sets):
         if r > 0:
-            # --- 到達目安・活動量の計算セクション ---
-            # 1. 時間計算 (徒歩: 80m/分, 自転車: 250m/分, ランニング: 167m/分)
-            # ※ランニングは 1km/6分 (時速10km) を想定
             walk_time = r * 1000 / 80
             bike_time = r * 1000 / 250
             run_time = r * 1000 / 167
 
-            # 2. 活動量計算 (ランニングの消費カロリーは体重60kgで 1km ≒ 60〜70kcal)
-            # 徒歩よりも強度が高いため、係数を少し高めに設定することも可能です
             steps = r * 1250
             calories_walk = r * 60
-            calories_run = r * 75  # ランニングはエネルギー効率の関係でやや高め
+            calories_run = r * 75
 
             with st.expander(f"円{i+1} ({r} km) の詳細", expanded=True if i==0 else False):
                 st.markdown(f"""
@@ -287,4 +283,6 @@ if map_data and map_data["last_clicked"]:
     nl, ng = map_data["last_clicked"]["lat"], map_data["last_clicked"]["lng"]
     if abs(nl - st.session_state.clicked_lat) > 0.0001:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
+        # 地図クリック時にも現在のニックネームで保存
+        save_log_to_sheets(display_name, "地図クリック選択地点", nl, ng, sets[0][0], sets[1][0], sets[2][0])
         st.rerun()
