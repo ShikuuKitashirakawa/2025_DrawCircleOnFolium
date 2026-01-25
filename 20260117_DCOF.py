@@ -167,18 +167,35 @@ with st.sidebar:
         st.session_state[conf["key"]] = r
         sets.append((r, c))
 
+# --- 160行目付近：半径の設定（sets.append...）のすぐ下 ---
+    
+    # ↓↓↓ ここから「デバッグ強化版」に書き換えます ↓↓↓
     if (search_query and search_query != st.session_state.last_search) or search_button:
         if search_query:
+            st.write("🔍 検索処理を開始しました...") # 画面に進行状況を出します
             with st.spinner("地点を検索中..."):
                 res_lat, res_lon, res_address = search_location(search_query)
                 if res_lat:
+                    st.write(f"✅ 地点発見: {res_address}")
                     st.session_state.clicked_lat = res_lat
                     st.session_state.clicked_lon = res_lon
                     st.session_state.last_search = search_query
-                    # display_name を使って保存
-                    save_log_to_sheets(display_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
-                    st.rerun()
+                    
+                    st.write("📝 スプレッドシート保存を試みます...")
+                    # ここで、以前作成した save_log_to_sheets 関数を呼び出します
+                    success = save_log_to_sheets(display_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
+                    
+                    if success:
+                        st.write("🎉 保存に成功しました！画面を更新します。")
+                        st.rerun()
+                    else:
+                        # ここでエラーメッセージが画面に赤く表示されるはずです
+                        st.error("❌ 保存に失敗しました。")
+                else:
+                    st.error("❓ 地点が見つかりませんでした")
+    # ↑↑↑ ここまでを書き換え ↑↑↑
 
+    # --- この後に map_style = st.radio(...) が続きます ---
     st.markdown("---")
     map_style = st.radio("地図スタイル", ["OpenStreetMap (世界対応)", "地理院 標準地図 (日本)", "地理院 空中写真 (日本)"])
 
@@ -292,3 +309,4 @@ if map_data and map_data["last_clicked"]:
         save_log_to_sheets(display_name, "地図クリック選択地点", nl, ng, sets[0][0], sets[1][0], sets[2][0])
 
         st.rerun()
+
