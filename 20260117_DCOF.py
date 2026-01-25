@@ -50,7 +50,9 @@ def get_simple_address(lat, lon):
 def save_log_to_sheets(user_name, address, lat, lon, r1, r2, r3):
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # ttl=0 を指定してキャッシュを無視して最新を読む
         existing_data = conn.read(ttl=0)
+        
         new_row = pd.DataFrame([{
             "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "user_name": user_name,
@@ -61,10 +63,13 @@ def save_log_to_sheets(user_name, address, lat, lon, r1, r2, r3):
             "r2": r2,
             "r3": r3
         }])
+        
         updated_df = pd.concat([existing_data, new_row], ignore_index=True)
         conn.update(data=updated_df)
         return True
-    except:
+    except Exception as e:
+        # エラーの内容を画面とログに表示する（原因特定のため一時的に追加）
+        st.error(f"スプレッドシート保存エラー: {e}")
         return False
 
 # --- セッション状態の初期化 ---
@@ -285,4 +290,5 @@ if map_data and map_data["last_clicked"]:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
         # 地図クリック時にも現在のニックネームで保存
         save_log_to_sheets(display_name, "地図クリック選択地点", nl, ng, sets[0][0], sets[1][0], sets[2][0])
+
         st.rerun()
