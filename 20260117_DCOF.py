@@ -82,22 +82,24 @@ if 'r3_val' not in st.session_state: st.session_state.r3_val = 5.0
 with st.sidebar:
     st.header("👤 ユーザー設定")
     
-    # 入力欄
-    user_name = st.text_input(
+    # 入力ボックス（valueを空にしてplaceholderを使用）
+    user_name_input = st.text_input(
         "ニックネーム", 
-        value="匿名ユーザー"
+        value="", 
+        placeholder="匿名ユーザー"
     )
     
-    # 常に表示される注意事項
+    # 入力があればそれを使用、空なら「匿名ユーザー」として扱う
+    display_name = user_name_input if user_name_input else "匿名ユーザー"
+    
     st.caption("⚠️ プライバシー保護のため本名以外の入力を推奨します。")
     st.caption("💡 入力後に下のボタンで前回の設定を復元できます。")
     
-    # 復元ボタン
     if st.button("前回の続きから再開"):
         try:
             conn = st.connection("gsheets", type=GSheetsConnection)
             df = conn.read(ttl=0)
-            user_history = df[df['user_name'] == user_name]
+            user_history = df[df['user_name'] == display_name]
             if not user_history.empty:
                 last_record = user_history.iloc[-1]
                 st.session_state.clicked_lat = float(last_record['lat'])
@@ -105,12 +107,13 @@ with st.sidebar:
                 st.session_state.r1_val = float(last_record['r1'])
                 st.session_state.r2_val = float(last_record['r2'])
                 st.session_state.r3_val = float(last_record['r3'])
-                st.success(f"{user_name}さんの最新データを復元しました")
+                st.success(f"{display_name}さんの最新データを復元しました")
                 st.rerun()
             else:
-                st.warning(f"{user_name}さんの履歴が見つかりません")
+                st.warning(f"{display_name}さんの履歴が見つかりません")
         except:
             st.error("履歴の読み込みに失敗しました")
+            
     
     st.markdown("---")
 
@@ -225,6 +228,17 @@ with col_info:
     st.subheader("🏠 地点情報")
     address = get_simple_address(current_lat, current_lon)
     st.info(f"**住所:**\n{address}")
+    
+    # 💾 保存に関するガイドを追加
+    with st.expander("💾 データの保存について", expanded=False):
+        st.caption("""
+        現在の設定（場所・半径・ニックネーム）は、以下のタイミングで自動的に保存されます：
+        1. **検索ボタン**を押して地点を移動したとき
+        2. **Enterキー**で検索を実行したとき
+        3. **地図上をクリック**して中心点を変えたとき
+        
+        ※ニックネームを変更しただけでは保存されません。変更後に一度検索またはクリックを行ってください。
+        """)    
     
     st.markdown("---")
     st.subheader("🚶 到達目安・活動量")
