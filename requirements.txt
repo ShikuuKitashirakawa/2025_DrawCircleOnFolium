@@ -2,3 +2,5 @@ streamlit
 folium
 streamlit-folium
 geopy
+st-gsheets-connection
+pandas

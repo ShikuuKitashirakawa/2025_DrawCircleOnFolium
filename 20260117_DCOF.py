@@ -4,182 +4,273 @@ from streamlit_folium import st_folium
 from folium.features import DivIcon
 import math
 from geopy.geocoders import Nominatim
+from streamlit_gsheets import GSheetsConnection
+import datetime
+import pandas as pd
 
 # --- ページ設定 ---
 st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（試作版）")
 
-# タイトルと使用用途例
 st.title("📍 同心円エリア描画ツール（試作版）")
 
 st.markdown("""
 ### 💡 このツールの活用シーン
-* **商圏分析**: 店舗を中心に、徒歩・自転車・自動車それぞれの集客範囲を可視化。
-* **ランニング・散歩コースの検討**: 自宅からの距離を把握し、無理のないトレーニングメニューを計画。
+* **商圏分析**: 店舗を中心に、徒歩・自転車それぞれの集客範囲を可視化。
 * **物件探し・立地評価**: 検討中の物件から駅やスーパーまでの距離感を直感的に把握。
 * **防災・避難計画**: 自宅から避難所までの距離や、災害時の影響範囲の目安を確認。
-* **サービス提供エリアの確認**: 配送・デリバリーや出張修理などの対応範囲のシミュレーション。
+* **健康・ウォーキング**: 指定した範囲の移動による消費カロリーや歩数の目安を把握。
 """)
 
-st.info("地図上をクリック、またはサイドバーからキーワード検索をすると、その地点を中心に描画します。")
-
-# --- ズームレベル計算関数 ---
+# --- 関数群 ---
 def calculate_zoom_level(radius_km):
     if radius_km <= 0: return 13
     zoom = 14.2 - math.log2(radius_km)
     return max(1, min(18, round(zoom)))
 
-# --- 住所・名称からの検索関数 (ジオコーディング) ---
 @st.cache_data(ttl=3600)
 def search_location(query):
     try:
-        geolocator = Nominatim(user_agent="area_analyzer_final_2026")
-        location = geolocator.geocode(query, language='ja')
+        geolocator = Nominatim(user_agent="area_analyzer_shikuu_2026_v4")
+        location = geolocator.geocode(query, language='ja', timeout=10)
         if location:
             return location.latitude, location.longitude, location.address
         return None, None, "地点が見つかりませんでした"
-    except:
-        return None, None, "検索エラーが発生しました"
+    except Exception as e:
+        return None, None, f"検索エンジン応答エラー: {e}"
 
-# --- 座標からの住所取得関数 (逆ジオコーディング) ---
 @st.cache_data(ttl=3600)
 def get_simple_address(lat, lon):
     try:
-        geolocator = Nominatim(user_agent="area_analyzer_final_2026")
+        geolocator = Nominatim(user_agent="area_analyzer_shikuu_2026_v4")
         location = geolocator.reverse(f"{lat}, {lon}", language='ja')
         return location.address if location else "住所が見つかりませんでした"
     except:
         return "住所取得エラー"
+
+def save_log_to_sheets(user_name, address, lat, lon, r1, r2, r3):
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        existing_data = conn.read(ttl=0)
+        new_row = pd.DataFrame([{
+            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "user_name": user_name,
+            "address": address,
+            "lat": lat,
+            "lon": lon,
+            "r1": r1,
+            "r2": r2,
+            "r3": r3
+        }])
+        updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+        conn.update(data=updated_df)
+        return True
+    except:
+        return False
 
 # --- セッション状態の初期化 ---
 if 'clicked_lat' not in st.session_state:
     st.session_state.clicked_lat = 35.6812
 if 'clicked_lon' not in st.session_state:
     st.session_state.clicked_lon = 139.7671
+if 'last_search' not in st.session_state:
+    st.session_state.last_search = ""
+if 'r1_val' not in st.session_state: st.session_state.r1_val = 1.0
+if 'r2_val' not in st.session_state: st.session_state.r2_val = 2.5
+if 'r3_val' not in st.session_state: st.session_state.r3_val = 5.0
 
 # --- サイドバー設定 ---
 with st.sidebar:
-    st.header("⚙️ エリア設定")
+    st.header("👤 ユーザー設定")
     
-    # 🔍 キーワード検索（Enter対応版）
-    st.subheader("🔍 キーワード検索")
+    # 入力欄
+    user_name = st.text_input(
+        "ニックネーム", 
+        value="匿名ユーザー"
+    )
     
-    # 前回の検索語を保持するセッションを初期化
-    if 'last_search' not in st.session_state:
-        st.session_state.last_search = ""
-
-    # text_input自体がEnterキーでrerunをトリガーします
-    search_query = st.text_input("施設名・地名・住所を入力", placeholder="例：東京駅、京都市四条河原町", key="search_input")
-
-    # 検索を実行する条件：Enterが押されて内容が前回と異なる、またはボタンが押された場合
-    search_triggered = st.button("検索")
+    # 常に表示される注意事項
+    st.caption("⚠️ プライバシー保護のため本名以外の入力を推奨します。")
+    st.caption("💡 入力後に下のボタンで前回の設定を復元できます。")
     
-    # Enterキーまたはボタンによるトリガー検知
-    if (search_query and search_query != st.session_state.last_search) or search_triggered:
-        with st.spinner("地点を検索中..."):
-            res_lat, res_lon, res_address = search_location(search_query)
-            if res_lat:
-                st.session_state.clicked_lat = res_lat
-                st.session_state.clicked_lon = res_lon
-                st.session_state.last_search = search_query # 検索語を保存
-                st.success(f"発見: {res_address[:30]}...")
+    # 復元ボタン
+    if st.button("前回の続きから再開"):
+        try:
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            df = conn.read(ttl=0)
+            user_history = df[df['user_name'] == user_name]
+            if not user_history.empty:
+                last_record = user_history.iloc[-1]
+                st.session_state.clicked_lat = float(last_record['lat'])
+                st.session_state.clicked_lon = float(last_record['lon'])
+                st.session_state.r1_val = float(last_record['r1'])
+                st.session_state.r2_val = float(last_record['r2'])
+                st.session_state.r3_val = float(last_record['r3'])
+                st.success(f"{user_name}さんの最新データを復元しました")
                 st.rerun()
             else:
-                st.error("地点が見つかりませんでした。")
+                st.warning(f"{user_name}さんの履歴が見つかりません")
+        except:
+            st.error("履歴の読み込みに失敗しました")
     
     st.markdown("---")
+
+    st.header("⚙️ エリア設定")
     
-    # 緯度経度の直接入力（セッション状態を反映）
-    lat = st.number_input("中心緯度", value=st.session_state.clicked_lat, format="%.6f")
-    lon = st.number_input("中心経度", value=st.session_state.clicked_lon, format="%.6f")
+    st.subheader("🔍 キーワード検索")
+    search_query = st.text_input("地名・住所を入力", placeholder="例：Paris, Tokyo", key="search_input")
+    search_button = st.button("検索")
     
-    # 手動入力があった場合にセッションを更新
-    if lat != st.session_state.clicked_lat or lon != st.session_state.clicked_lon:
-        st.session_state.clicked_lat = lat
-        st.session_state.clicked_lon = lon
+    # 📜 履歴復元セクション
+    st.markdown("---")
+    st.subheader("📜 履歴から復元")
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df_history = conn.read(ttl="5m")
+        if not df_history.empty:
+            history_options = df_history.iloc[::-1]['address'].unique()[:10]
+            selected_h = st.selectbox("過去の地点を選択", ["選択してください"] + list(history_options))
+            if selected_h != "選択してください":
+                target = df_history[df_history['address'] == selected_h].iloc[-1]
+                if st.button("この地点と半径を復元"):
+                    st.session_state.clicked_lat = float(target['lat'])
+                    st.session_state.clicked_lon = float(target['lon'])
+                    st.session_state.r1_val = float(target['r1'])
+                    st.session_state.r2_val = float(target['r2'])
+                    st.session_state.r3_val = float(target['r3'])
+                    st.rerun()
+    except:
+        st.caption("履歴の読み込みに失敗しました")
 
     st.markdown("---")
-    
+
+    # 半径の設定
     sets = []
     configs = [
-        {"id": 1, "def_r": 1.0, "def_c": "#FF4B4B", "label": "🔴 円1 (近圏: 太実線)"},
-        {"id": 2, "def_r": 2.5, "def_c": "#1E90FF", "label": "🔵 円2 (中圏: 細実線)"},
-        {"id": 3, "def_r": 5.0, "def_c": "#2E8B57", "label": "🟢 円3 (広域: 細点線)"}
+        {"id": 1, "key": "r1_val", "def_c": "#FF4B4B", "label": "🔴 円1 (太実線)"},
+        {"id": 2, "key": "r2_val", "def_c": "#1E90FF", "label": "🔵 円2 (細実線)"},
+        {"id": 3, "key": "r3_val", "def_c": "#2E8B57", "label": "🟢 円3 (細点線)"}
     ]
     
     for conf in configs:
         st.subheader(conf["label"])
         col_r, col_c = st.columns([2, 1])
-        r = col_r.number_input(f"半径 (km)", min_value=0.0, value=conf["def_r"], step=0.5, key=f"r{conf['id']}")
+        r = col_r.number_input(f"半径 (km)", min_value=0.0, value=st.session_state[conf["key"]], step=0.5, key=f"r_input_{conf['id']}")
         c = col_c.color_picker("色", conf["def_c"], key=f"c{conf['id']}")
+        st.session_state[conf["key"]] = r
         sets.append((r, c))
-    
+
+    if (search_query and search_query != st.session_state.last_search) or search_button:
+        if search_query:
+            with st.spinner("地点を検索中..."):
+                res_lat, res_lon, res_address = search_location(search_query)
+                if res_lat:
+                    st.session_state.clicked_lat = res_lat
+                    st.session_state.clicked_lon = res_lon
+                    st.session_state.last_search = search_query
+                    save_log_to_sheets(user_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
+                    st.rerun()
+
     st.markdown("---")
-    map_style = st.radio("地図スタイル", ["標準地図", "淡色地図", "シームレス空中写真"])
+    map_style = st.radio("地図スタイル", ["OpenStreetMap (世界対応)", "地理院 標準地図 (日本)", "地理院 空中写真 (日本)"])
 
     st.markdown("---")
     with st.expander("ℹ️ 免責事項・ライセンス"):
         st.caption("""
         **免責事項**
-        - 本アプリの計算結果（面積・住所等）の正確性は保証されません。
+        - 本アプリの計算結果（移動時間、カロリー等）の正確性は保証されません。
         - 本アプリの利用により生じた損害について、作者は一切の責任を負いません。
-        - 地図データは国土地理院タイル、住所検索はOpenStreetMap(Nominatim)を利用しています。
+        
+        **使用データ・ライセンス**
+        - **地図データ**: 
+            - [OpenStreetMap](https://www.openstreetmap.org/copyright) (c) OpenStreetMap contributors
+            - [国土地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)
+        - **住所検索**: [Nominatim](https://nominatim.org/)
         
         **ライセンス**
-        MIT License
+        MIT License  
         © 2026 Shikuu Kitashirakawa
         """)
 
-# --- 自動ズームと地図 ---
-focus_r = sets[1][0] if sets[1][0] > 0 else (sets[0][0] if sets[0][0] > 0 else 1.0)
+# --- 地図表示 ---
+current_lat, current_lon = st.session_state.clicked_lat, st.session_state.clicked_lon
+focus_r = sets[1][0] if sets[1][0] > 0 else 1.0
 zoom_val = calculate_zoom_level(focus_r)
 
 col_map, col_info = st.columns([3, 1])
 
 with col_map:
-    map_tiles = {
-        "標準地図": "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
-        "淡色地図": "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
-        "シームレス空中写真": "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg"
-    }
-    
-    m = folium.Map(location=[lat, lon], zoom_start=zoom_val, tiles=map_tiles[map_style], attr="国土地理院")
-    folium.Marker([lat, lon], icon=folium.Icon(color="black", icon="info-sign")).add_to(m)
+    if map_style == "OpenStreetMap (世界対応)":
+        m = folium.Map(location=[current_lat, current_lon], zoom_start=zoom_val)
+    else:
+        tiles_dict = {
+            "地理院 標準地図 (日本)": "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+            "地理院 空中写真 (日本)": "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg"
+        }
+        m = folium.Map(location=[current_lat, current_lon], zoom_start=zoom_val, tiles=tiles_dict[map_style], attr="国土地理院")
+
+    folium.Marker([current_lat, current_lon], icon=folium.Icon(color="black", icon="info-sign")).add_to(m)
 
     for i, (r, color) in enumerate(sets):
         if r > 0:
             weight = 5 if i == 0 else 2
             dash = "10, 10" if i == 2 else None
-            folium.Circle(location=[lat, lon], radius=r*1000, color=color, weight=weight, dash_array=dash, fill=True, fill_opacity=0.05).add_to(m)
-            
-            # 半径ラベル（北側に表示）
-            label_lat = lat + (r / 111.0) 
-            folium.Marker(location=[label_lat, lon], icon=DivIcon(icon_size=(150, 36), icon_anchor=(75, 18),
+            folium.Circle(location=[current_lat, current_lon], radius=r*1000, color=color, weight=weight, dash_array=dash, fill=True, fill_opacity=0.05).add_to(m)
+            label_lat = current_lat + (r / 111.0) 
+            folium.Marker(location=[label_lat, current_lon], icon=DivIcon(icon_size=(150, 36), icon_anchor=(75, 18),
                 html=f'<div style="font-size: 9pt; color: {color}; font-weight: bold; text-align: center; background-color: rgba(255,255,255,0.8); border: 1px solid {color}; border-radius: 4px; padding: 1px 4px;">{r} km</div>')).add_to(m)
 
-    # 地図描画（keyを緯度・経度・ズームに紐付けることで、検索時に確実にリセットされるようにします）
-    map_data = st_folium(m, width=None, height=600, key=f"map_{st.session_state.clicked_lat}_{st.session_state.clicked_lon}_{zoom_val}", use_container_width=True)
+    map_data = st_folium(m, width=None, height=600, key=f"map_{current_lat}_{current_lon}_{zoom_val}", use_container_width=True)
 
 with col_info:
     st.subheader("🏠 地点情報")
-    address = get_simple_address(lat, lon)
+    address = get_simple_address(current_lat, current_lon)
     st.info(f"**住所:**\n{address}")
-    st.caption(f"座標: {lat:.6f}, {lon:.6f}")
     
     st.markdown("---")
-    st.subheader("📏 エリア面積")
+    st.subheader("🚶 到達目安・活動量")
+    st.warning("⚠️ 以下の数値は、地図上の**直線距離**に基づいた理論値です。実際の道路状況により時間はさらに増加します。")
+
     for i, (r, color) in enumerate(sets):
         if r > 0:
-            area = math.pi * (r**2)
-            st.markdown(f'<div style="border-left: 5px solid {color}; padding-left: 10px; margin-bottom: 15px;"><span style="font-size: 0.8em; color: gray;">円{i+1} 半径</span><br><b>{r} km</b> / <span style="color:{color};"><b>{area:.2f} km²</b></span></div>', unsafe_allow_html=True)
+            # --- 到達目安・活動量の計算セクション ---
+            # 1. 時間計算 (徒歩: 80m/分, 自転車: 250m/分, ランニング: 167m/分)
+            # ※ランニングは 1km/6分 (時速10km) を想定
+            walk_time = r * 1000 / 80
+            bike_time = r * 1000 / 250
+            run_time = r * 1000 / 167
+
+            # 2. 活動量計算 (ランニングの消費カロリーは体重60kgで 1km ≒ 60〜70kcal)
+            # 徒歩よりも強度が高いため、係数を少し高めに設定することも可能です
+            steps = r * 1250
+            calories_walk = r * 60
+            calories_run = r * 75  # ランニングはエネルギー効率の関係でやや高め
+
+            with st.expander(f"円{i+1} ({r} km) の詳細", expanded=True if i==0 else False):
+                st.markdown(f"""
+                <div style="border-left: 5px solid {color}; padding-left: 10px;">
+                <p><b>🏃 徒歩:</b> 約{int(walk_time)}分</p>
+                <p><b>👟 ランニング:</b> 約{int(run_time)}分 <span style="font-size: 0.8em; color: gray;">(6分/kmペース)</span></p>
+                <p><b>🚲 自転車:</b> 約{int(bike_time)}分</p>
+                <hr style="margin: 10px 0;">
+                <p><b>🔥 消費目安:</b></p>
+                <ul>
+                    <li>ウォーキング: 約{int(calories_walk)}kcal</li>
+                    <li>ランニング: 約{int(calories_run)}kcal</li>
+                </ul>
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.info("🏃 活動量の算出基準")
+    st.caption("""
+    - **徒歩**: 分速80m / 消費 60kcal (1km移動時)
+    - **ランニング**: 分速167m / 消費 75kcal (1km移動時)
+    - **自転車**: 分速250m
+    ※消費カロリーは体重60kgの標準的な数値を基準に算出しています。
+    """)
 
 # 地図クリック処理
 if map_data and map_data["last_clicked"]:
     nl, ng = map_data["last_clicked"]["lat"], map_data["last_clicked"]["lng"]
-    # 前回の座標と一定以上の差があれば更新
-    if abs(nl - st.session_state.clicked_lat) > 0.000001:
+    if abs(nl - st.session_state.clicked_lat) > 0.0001:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
-
         st.rerun()
-
-
-
