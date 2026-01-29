@@ -30,22 +30,30 @@ def calculate_zoom_level(radius_km):
 @st.cache_data(ttl=3600)
 def search_location(query):
     try:
-        geolocator = Nominatim(user_agent="area_analyzer_shikuu_2026_v4")
+        # user_agentをよりユニークなものに変更
+        geolocator = Nominatim(user_agent="shikuu_circle_app_final_test_001")
         location = geolocator.geocode(query, language='ja', timeout=10)
         if location:
+            # location.addressが長すぎる場合があるので、少し整理される
             return location.latitude, location.longitude, location.address
         return None, None, "地点が見つかりませんでした"
     except Exception as e:
-        return None, None, f"検索エンジン応答エラー: {e}"
+        # ログに詳細を出す（デバッグ用）
+        print(f"DEBUG: Geocode Error: {e}")
+        return None, None, f"検索エラー: {e}"
 
 @st.cache_data(ttl=3600)
 def get_simple_address(lat, lon):
     try:
-        geolocator = Nominatim(user_agent="area_analyzer_shikuu_2026_v4")
-        location = geolocator.reverse(f"{lat}, {lon}", language='ja')
-        return location.address if location else "住所が見つかりませんでした"
-    except:
-        return "住所取得エラー"
+        # ここもuser_agentを統一
+        geolocator = Nominatim(user_agent="shikuu_circle_app_final_test_001")
+        location = geolocator.reverse(f"{lat}, {lon}", language='ja', timeout=10)
+        if location:
+            return location.address
+        return "住所不明"
+    except Exception as e:
+        # 何が原因でエラーになっているか画面に少し出す
+        return f"住所取得エラー ({e})"
 
 def save_log_to_sheets(user_name, address, lat, lon, r1, r2, r3):
     try:
@@ -308,6 +316,7 @@ if map_data and map_data["last_clicked"]:
         save_log_to_sheets(display_name, "地図クリック選択地点", nl, ng, sets[0][0], sets[1][0], sets[2][0])
 
         st.rerun()
+
 
 
 
