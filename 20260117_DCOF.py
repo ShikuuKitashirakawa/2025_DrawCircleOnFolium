@@ -9,9 +9,9 @@ import datetime
 import pandas as pd
 
 # --- ページ設定 ---
-st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（統合版）")
+st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（統合完成版）")
 
-st.title("📍 同心円エリア描画ツール（統合版）")
+st.title("📍 同心円エリア描画ツール（統合完成版）")
 
 # --- 関数群 ---
 def calculate_zoom_level(radius_km):
@@ -22,7 +22,8 @@ def calculate_zoom_level(radius_km):
 @st.cache_data(ttl=3600)
 def search_location(query):
     try:
-        geolocator = Nominatim(user_agent="shikuu_analyzer_2026_unified_final")
+        # User-Agentをさらにユニークに
+        geolocator = Nominatim(user_agent="shikuu_analyzer_2026_final_safe")
         location = geolocator.geocode(query, language='ja', timeout=10)
         if location:
             return location.latitude, location.longitude, location.address
@@ -32,7 +33,7 @@ def search_location(query):
 
 def get_simple_address(lat, lon):
     try:
-        geolocator = Nominatim(user_agent="shikuu_analyzer_2026_unified_final")
+        geolocator = Nominatim(user_agent="shikuu_analyzer_2026_final_safe")
         location = geolocator.reverse(f"{lat}, {lon}", language='ja', timeout=10)
         if location:
             return location.address
@@ -91,7 +92,7 @@ with st.sidebar:
             
     st.markdown("---")
     st.header("⚙️ エリア設定")
-    search_query = st.text_input("地名・住所で検索", placeholder="例：東京駅", key="search_input")
+    search_query = st.text_input("地名・住所で検索", placeholder="例：高知城", key="search_input")
     search_button = st.button("検索実行")
 
     # 📜 履歴から復元（全ユーザー用）
@@ -100,6 +101,7 @@ with st.sidebar:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df_history = conn.read(ttl="1m")
         if not df_history.empty:
+            # 重複を除いた最新10件の住所を表示
             history_options = df_history.iloc[::-1]['address'].unique()[:10]
             selected_h = st.selectbox("過去の地点を選択", ["選択してください"] + list(history_options))
             if selected_h != "選択してください":
@@ -115,6 +117,7 @@ with st.sidebar:
         st.caption("履歴の読み込みに失敗しました")
 
     st.markdown("---")
+    # 半径の設定
     sets = []
     configs = [
         {"id": 1, "key": "r1_val", "def_c": "#FF4B4B", "label": "🔴 円1 (太実線)"},
@@ -129,15 +132,22 @@ with st.sidebar:
         st.session_state[conf["key"]] = r
         sets.append((r, c))
 
-    if (search_query and search_query != st.session_state.last_search) or search_button:
+    # --- 検索実行ロジック ---
+    if search_button or (search_query and search_query != st.session_state.last_search):
         if search_query:
             with st.spinner("地点を検索中..."):
                 res_lat, res_lon, res_address = search_location(search_query)
                 if res_lat:
-                    st.session_state.clicked_lat, st.session_state.clicked_lon = res_lat, res_lon
+                    # 地図の座標と検索履歴を更新
+                    st.session_state.clicked_lat = res_lat
+                    st.session_state.clicked_lon = res_lon
                     st.session_state.last_search = search_query
+                    # スプレッドシートへ保存
                     save_log_to_sheets(display_name, res_address, res_lat, res_lon, sets[0][0], sets[1][0], sets[2][0])
+                    # 画面をリフレッシュして地図を移動させる
                     st.rerun()
+                else:
+                    st.error("❓ 地点が見つかりませんでした")
 
     st.markdown("---")
     map_style = st.radio("地図スタイル", ["OpenStreetMap", "地理院 標準地図", "地理院 空中写真"])
@@ -152,12 +162,13 @@ with st.sidebar:
         - MIT License © 2026 Shikuu Kitashirakawa
         """)
 
-# --- メイン表示 ---
+# --- メイン表示エリア ---
 current_lat, current_lon = st.session_state.clicked_lat, st.session_state.clicked_lon
 zoom_val = calculate_zoom_level(sets[1][0] if sets[1][0] > 0 else 1.0)
 col_map, col_info = st.columns([3, 1])
 
 with col_map:
+    # 地図タイルの設定
     tiles = "OpenStreetMap"
     attr = "OpenStreetMap contributors"
     if map_style == "地理院 標準地図":
@@ -175,8 +186,9 @@ with col_map:
             weight = 4 if i == 0 else 2
             dash = "10, 10" if i == 2 else None
             folium.Circle(location=[current_lat, current_lon], radius=r*1000, color=color, weight=weight, dash_array=dash, fill=True, fill_opacity=0.07).add_to(m)
+            # 距離ラベル
             folium.Marker(location=[current_lat + (r / 111.0), current_lon], icon=DivIcon(icon_size=(150,36), icon_anchor=(75,18),
-                html=f'<div style="font-size: 9pt; color: {color}; font-weight: bold; text-align: center; background: white; border: 1px solid {color}; border-radius: 4px;">{r} km</div>')).add_to(m)
+                html=f'<div style="font-size: 9pt; color: {color}; font-weight: bold; text-align: center; background: white; border: 1px solid {color}; border-radius: 4px; padding: 2px;">{r} km</div>')).add_to(m)
 
     map_data = st_folium(m, width=None, height=600, key=f"map_{current_lat}_{current_lon}", use_container_width=True)
 
@@ -186,10 +198,12 @@ with col_info:
         with st.spinner("住所を取得中..."):
             address = get_simple_address(current_lat, current_lon)
             st.info(f"**住所:**\n{address}")
+    else:
+        st.caption("※サーバー負荷軽減のため住所はボタン取得式です。")
     
     st.markdown("---")
     st.subheader("🚶 到達目安・活動量")
-    st.warning("⚠️ 数値は直線距離に基づく理論値です。")
+    st.warning("⚠️ 直線距離に基づく理論値です。")
 
     for i, (r, color) in enumerate(sets):
         if r > 0:
@@ -214,5 +228,6 @@ if map_data and map_data["last_clicked"]:
     nl, ng = map_data["last_clicked"]["lat"], map_data["last_clicked"]["lng"]
     if abs(nl - st.session_state.clicked_lat) > 0.0001:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
+        # クリック時は住所取得を省き高速化
         save_log_to_sheets(display_name, f"地図クリック地点({nl:.4f}, {ng:.4f})", nl, ng, sets[0][0], sets[1][0], sets[2][0])
         st.rerun()
