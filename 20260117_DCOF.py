@@ -91,7 +91,13 @@ with st.sidebar:
             st.error("履歴の読み込みに失敗しました")
             
     st.markdown("---")
+
     st.header("⚙️ エリア設定")
+    
+    # 1. まず「空のセット」を用意しておく（NameError対策）
+    # この後の半径設定ループで中身を埋めますが、先に変数だけ宣言します
+    sets = []
+    
     search_query = st.text_input("地名・住所で検索", placeholder="例：高知城", key="search_input")
     search_button = st.button("検索実行")
 
@@ -115,10 +121,33 @@ with st.sidebar:
                     st.rerun()
     except:
         st.caption("履歴の読み込みに失敗しました")
+    st.markdown("---")
+    
+# --- サイドバー：エリア設定内 ---
+    st.subheader("📍 座標指定で移動")
+    col_lat, col_lon = st.columns(2)
+    input_lat = col_lat.number_input("緯度", value=st.session_state.clicked_lat, format="%.6f", key="coord_lat")
+    input_lon = col_lon.number_input("経度", value=st.session_state.clicked_lon, format="%.6f", key="coord_lon")
+    
+    if st.button("座標へ移動"):
+        st.session_state.clicked_lat = input_lat
+        st.session_state.clicked_lon = input_lon
+        # ★修正：setsを使わず、session_stateから直接半径を取得する
+        save_log_to_sheets(
+            display_name, 
+            f"座標直接入力({input_lat:.4f}, {input_lon:.4f})", 
+            input_lat, input_lon, 
+            st.session_state.r1_val, # 円1の半径
+            st.session_state.r2_val, # 円2の半径
+            st.session_state.r3_val  # 円3の半径
+        )
+        st.toast(f"📍 座標 {input_lat}, {input_lon} へ移動しました")
+        st.rerun()
 
     st.markdown("---")
+    
+    # この後に「半径の設定（configsのループ）」を記述            
     # 半径の設定
-    sets = []
     configs = [
         {"id": 1, "key": "r1_val", "def_c": "#FF4B4B", "label": "🔴 円1 (太実線)"},
         {"id": 2, "key": "r2_val", "def_c": "#1E90FF", "label": "🔵 円2 (細実線)"},
@@ -132,6 +161,8 @@ with st.sidebar:
         st.session_state[conf["key"]] = r
         sets.append((r, c))
 
+
+        
     # --- 検索実行ロジック ---
     if search_button or (search_query and search_query != st.session_state.last_search):
         if search_query:
