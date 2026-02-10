@@ -9,7 +9,7 @@ import datetime
 import pandas as pd
 
 # --- ページ設定 ---
-st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（統合完成版）")
+st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（試作品）")
 
 st.title("📍 同心円エリア描画ツール（統合完成版）")
 
@@ -262,3 +262,4 @@ if map_data and map_data["last_clicked"]:
         # クリック時は住所取得を省き高速化
         save_log_to_sheets(display_name, f"地図クリック地点({nl:.4f}, {ng:.4f})", nl, ng, sets[0][0], sets[1][0], sets[2][0])
         st.rerun()
+
