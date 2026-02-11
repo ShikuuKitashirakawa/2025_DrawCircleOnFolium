@@ -11,7 +11,7 @@ import pandas as pd
 # --- ページ設定 ---
 st.set_page_config(layout="wide", page_title="同心円エリア描画ツール（試作品）")
 
-st.title("📍 同心円エリア描画ツール（統合完成版）")
+st.title("📍 同心円エリア描画ツール（試作品）")
 
 # --- 関数群 ---
 def calculate_zoom_level(radius_km):
@@ -183,15 +183,30 @@ with st.sidebar:
     st.markdown("---")
     map_style = st.radio("地図スタイル", ["OpenStreetMap", "地理院 標準地図", "地理院 空中写真"])
 
-    st.markdown("---")
-    with st.expander("ℹ️ 免責事項・ライセンス"):
-        st.caption("""
-        **免責事項**
-        - 本アプリの計算結果（移動時間、カロリー等）の正確性は保証されません。
-        - [OpenStreetMap](https://www.openstreetmap.org/copyright) (c) OpenStreetMap contributors
-        - [国土地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)
-        - MIT License © 2026 Shikuu Kitashirakawa
-        """)
+# --- 免責事項 / ライセンス / 出典 (日本語版) ---
+st.markdown("---")
+with st.expander("ℹ️ 情報 / 出典 / 免責事項"):
+    st.markdown("""
+    ### **【免責事項】**
+    - 本アプリで提供される計算結果（移動時間、消費カロリー、住所情報等）は、直線距離に基づく理論値であり、その正確性や安全性を保証するものではありません。
+    - 本アプリの利用により生じた事故、損害、トラブル等について、開発者は一切の責任を負いません。実際の通行時には現地の交通ルールや道路状況に従ってください。
+    
+    ### **【データ出典 / クレジット】**
+    - **地図データ**: [OpenStreetMap](https://www.openstreetmap.org/copyright) (c) OpenStreetMap contributors
+    - **地図タイル**: 
+        - [国土地理院](https://maps.gsi.go.jp/development/ichiran.html) (標準地図、空中写真)
+        - [CartoDB Voyager](https://carto.com/basemaps/)
+        - [ESRI World Imagery](https://www.esri.com/)
+    - **住所検索(ジオコーディング)**: [Nominatim](https://nominatim.org/) (Data by OpenStreetMap)
+    
+    ### **【算出根拠】**
+    - 徒歩: 80m/分、走行: 167m/分、自転車: 250m/分 として算出。
+    - 消費カロリーは体重60kgの成人を想定した概算値です。
+    
+    ### **【ライセンス】**
+    - **MIT License**
+    - © 2026 Shikuu Kitashirakawa (ShikuuKitashirakawa)
+    """)
 
 # --- メイン表示エリア ---
 current_lat, current_lon = st.session_state.clicked_lat, st.session_state.clicked_lon
@@ -262,4 +277,5 @@ if map_data and map_data["last_clicked"]:
         # クリック時は住所取得を省き高速化
         save_log_to_sheets(display_name, f"地図クリック地点({nl:.4f}, {ng:.4f})", nl, ng, sets[0][0], sets[1][0], sets[2][0])
         st.rerun()
+
 
