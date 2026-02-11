@@ -10,7 +10,7 @@ import pandas as pd
 
 # --- Page Config ---
 st.set_page_config(layout="wide", page_title="Area Tool (EN)")
-st.title("📍 Concentric Circle Area Tool (English)")
+st.title("📍 Concentric Circle Area Tool (English: trial product)")
 
 # --- Units & Constants ---
 KM_TO_MILE = 0.621371
@@ -178,19 +178,28 @@ with col_info:
     st.info("🏃 Basis for calculation")
     st.caption("Walk: 80m/min, Run: 167m/min, Bike: 250m/min\n(Based on 60kg body weight)")
 
-# --- Info / License / Disclaimer ---
+# --- Info / License / Disclaimer (English version) ---
 st.markdown("---")
-with st.expander(T["license_info"]):
-    st.markdown(f"""
-    **Disclaimer**
-    - The results are theoretical estimates and not guaranteed.
-    - {T['map_note']}
+with st.expander("ℹ️ Info / License / Disclaimer"):
+    st.markdown("""
+    ### **【Disclaimer】**
+    - The results provided by this application (travel time, calories burned, address data, etc.) are theoretical estimates based on straight-line distances and are not guaranteed to be accurate or safe for navigation.
+    - The developer is not responsible for any accidents, damages, or troubles resulting from the use of this application. Please follow local traffic rules and actual road conditions.
+    - **Map Labels**: Note that map labels may switch to the local language depending on the zoom level due to map tile specifications.
 
-    **Data Sources / Credits**
-    - [OpenStreetMap](https://www.openstreetmap.org/copyright) (c) OpenStreetMap contributors
-    - [CartoDB Voyager Tiles](https://carto.com/basemaps/)
-    - [ESRI World Imagery](https://www.esri.com/)
-    - MIT License © 2026 Shikuu Kitashirakawa
+    ### **【Data Sources / Credits】**
+    - **Map Data**: [OpenStreetMap](https://www.openstreetmap.org/copyright) (c) OpenStreetMap contributors
+    - **Map Tiles (Standard)**: [CartoDB Voyager Tiles](https://carto.com/basemaps/)
+    - **Map Tiles (Satellite)**: [ESRI World Imagery](https://www.esri.com/)
+    - **Geocoding Service**: [Nominatim](https://nominatim.org/) (Data by OpenStreetMap)
+
+    ### **【Calculation Basis】**
+    - Travel estimates are based on: Walk (80m/min), Run (167m/min), Bike (250m/min).
+    - Calories are rough estimates based on an average adult weight of 60kg.
+
+    ### **【License】**
+    - **MIT License**
+    - © 2026 Shikuu Kitashirakawa (ShikuuKitashirakawa)
     """)
 
 # Click logic
@@ -199,4 +208,5 @@ if map_data and map_data["last_clicked"]:
     if abs(nl - st.session_state.clicked_lat) > 0.0001:
         st.session_state.clicked_lat, st.session_state.clicked_lon = nl, ng
         save_log_to_sheets(display_name, f"Click({nl:.4f}, {ng:.4f})", nl, ng, st.session_state.r1_val, st.session_state.r2_val, st.session_state.r3_val)
+
         st.rerun()
